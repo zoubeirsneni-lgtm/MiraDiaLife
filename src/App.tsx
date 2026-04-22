@@ -815,11 +815,35 @@ const Profile = ({ user, profile, setProfile, setActiveTab }: { user: User, prof
               <h3 className="font-black">Espace Docteur</h3>
            </div>
            <p className="text-xs opacity-60 mb-4 leading-relaxed">Bienvenue Docteur Sneni. Vous avez accès à la gestion globale des patients et à leurs rapports.</p>
-           <Button className="w-full bg-white text-slate-900" onClick={() => setActiveTab('admin')}>
+           <Button variant="secondary" className="w-full bg-white text-slate-900 border-none" onClick={() => setActiveTab('admin')}>
              Accéder à la Patientèle
            </Button>
         </Card>
       )}
+
+      <Card className="bg-blue-50 border-blue-100 p-4">
+        <div className="flex items-center gap-3 mb-2">
+          <Sparkles size={18} className="text-blue-500" />
+          <h4 className="text-xs font-black uppercase tracking-widest text-blue-800">Installer MiraDiaLife</h4>
+        </div>
+        <p className="text-[11px] text-blue-700 leading-relaxed font-medium mb-3">
+          Pour utiliser l'application comme une vraie application sur votre écran d'accueil :
+        </p>
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <span className="w-4 h-4 bg-blue-200 text-blue-800 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</span>
+            <p className="text-[10px] text-blue-600 font-bold uppercase tracking-tight">Ouvrez le lien partagé dans votre navigateur mobile.</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="w-4 h-4 bg-blue-200 text-blue-800 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</span>
+            <p className="text-[10px] text-blue-600 font-bold uppercase tracking-tight">Appuyez sur "Partager" (iOS) ou les "3 points" (Android).</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="w-4 h-4 bg-blue-200 text-blue-800 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">3</span>
+            <p className="text-[10px] text-blue-600 font-bold uppercase tracking-tight">Sélectionnez "Sur l'écran d'accueil".</p>
+          </div>
+        </div>
+      </Card>
 
       <div className="space-y-2">
         <Button variant="danger" className="w-full flex items-center justify-center space-x-2" onClick={logout}>

@@ -1,0 +1,17 @@
+{
+  "name": "MiraDiaLife",
+  "short_name": "MiraDia",
+  "description": "Assistant Intelligent pour la Gestion du Diabète du Docteur Sneni",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F0F4F8",
+  "theme_color": "#3B82F6",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
