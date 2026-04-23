@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, HealthLog, DiaCareInsights } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 const DIA_CARE_SYSTEM_PROMPT = `
 You are an advanced AI system called "Diagnostic Expert" specialized in diabetes management.
