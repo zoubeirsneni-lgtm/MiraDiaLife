@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { Send, User, Bot, Loader2, Sparkles } from 'lucide-react';
 import { HealthLog, UserProfile } from '../types';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { getAI } from '../services/aiService';
 
 const ChatWithMira = ({ logs, profile }: { logs: HealthLog[], profile: UserProfile | null }) => {
   const [messages, setMessages] = useState<{ role: 'user' | 'model', content: string }[]>([
@@ -27,8 +27,19 @@ const ChatWithMira = ({ logs, profile }: { logs: HealthLog[], profile: UserProfi
     setLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = getAI();
+      if (!ai) {
+        setMessages(prev => [...prev, { role: 'model', content: "Désolée, je ne peux pas répondre car ma clé API n'est pas configurée dans le fichier .env de votre ordinateur." }]);
+        setLoading(false);
+        return;
+      }
       
+      // Filtrer les messages pour s'assurer que l'historique commence par l'utilisateur
+      // et alterner correctement entre user et model
+      const history = messages
+        .filter((m, index) => !(index === 0 && m.role === 'model')) // Skip le "Bonjour" initial de Mira
+        .map(m => ({ role: m.role, parts: [{ text: m.content }] }));
+
       // Contextual data preparation
       const recentLogs = logs.slice(0, 30).map(l => ({
         type: l.type,
@@ -54,14 +65,12 @@ const ChatWithMira = ({ logs, profile }: { logs: HealthLog[], profile: UserProfi
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-1.5-flash",
+        systemInstruction,
         contents: [
-          ...messages.map(m => ({ role: m.role, parts: [{ text: m.content }] })),
+          ...history,
           { role: 'user', parts: [{ text: userMsg }] }
-        ],
-        config: {
-            systemInstruction
-        }
+        ]
       });
 
       const modelReply = response.text || "Désolée, je n'ai pas pu générer une réponse.";

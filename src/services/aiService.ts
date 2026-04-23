@@ -1,7 +1,21 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, HealthLog, DiaCareInsights } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+let aiInstance: GoogleGenAI | null = null;
+
+export function getAI() {
+  if (!aiInstance) {
+    // On essaie d'abord la clé système (AI Studio Preview) puis la clé VITE (.env local)
+    const apiKey = process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
+    
+    if (!apiKey) {
+      console.warn("Clé API Gemini non trouvée. Les fonctionnalités IA sont désactivées.");
+      return null;
+    }
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+}
 
 const DIA_CARE_SYSTEM_PROMPT = `
 You are an advanced AI system called "Diagnostic Expert" specialized in diabetes management.
@@ -27,8 +41,10 @@ Output MUST be valid JSON matching the provided schema.
 
 export async function analyzeMealImage(base64Image: string): Promise<{ name: string; estimateGlucides: string; advice: string } | null> {
   try {
+    const ai = getAI();
+    if (!ai) return null;
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: [
         {
           role: "user",
@@ -64,6 +80,8 @@ export async function analyzeMealImage(base64Image: string): Promise<{ name: str
 
 export async function getDiaCareInsights(profile: UserProfile, logs: HealthLog[]): Promise<DiaCareInsights | null> {
   try {
+    const ai = getAI();
+    if (!ai) return null;
     const glucoseLogs = logs.filter(l => l.type === 'glucose').slice(0, 20);
     const mealsLogs = logs.filter(l => l.type === 'food').slice(0, 10);
     const activityLogs = logs.filter(l => l.type === 'activity').slice(0, 10);
@@ -81,10 +99,10 @@ export async function getDiaCareInsights(profile: UserProfile, logs: HealthLog[]
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `Calculate insights for: ${JSON.stringify(userInput)}`,
+      model: "gemini-1.5-flash",
+      systemInstruction: DIA_CARE_SYSTEM_PROMPT,
+      contents: [{ role: 'user', parts: [{ text: `Calculate insights for: ${JSON.stringify(userInput)}` }] }],
       config: {
-        systemInstruction: DIA_CARE_SYSTEM_PROMPT,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
