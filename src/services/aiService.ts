@@ -100,9 +100,9 @@ export async function getDiaCareInsights(profile: UserProfile, logs: HealthLog[]
 
     const response = await ai.models.generateContent({
       model: "gemini-1.5-flash",
-      systemInstruction: DIA_CARE_SYSTEM_PROMPT,
       contents: [{ role: 'user', parts: [{ text: `Calculate insights for: ${JSON.stringify(userInput)}` }] }],
       config: {
+        systemInstruction: DIA_CARE_SYSTEM_PROMPT,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,

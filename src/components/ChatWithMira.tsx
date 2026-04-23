@@ -66,11 +66,13 @@ const ChatWithMira = ({ logs, profile }: { logs: HealthLog[], profile: UserProfi
 
       const response = await ai.models.generateContent({
         model: "gemini-1.5-flash",
-        systemInstruction,
         contents: [
           ...history,
           { role: 'user', parts: [{ text: userMsg }] }
-        ]
+        ],
+        config: {
+          systemInstruction
+        }
       });
 
       const modelReply = response.text || "Désolée, je n'ai pas pu générer une réponse.";
