@@ -44,6 +44,25 @@ import { MealAnalysis } from './components/MealAnalysis';
 import { InsulinCalculator } from './components/InsulinCalculator';
 import ChatWithMira from './components/ChatWithMira';
 import { Card } from './components/Card';
+import { 
+  auth, 
+  db, 
+  signInWithGoogle, 
+  logout as firebaseLogout, 
+  onSnapshot, 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  addDoc, 
+  setDoc, 
+  doc, 
+  getDoc,
+  serverTimestamp,
+  handleFirestoreError,
+  formatTimestamp
+} from './lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 
 const ADMIN_EMAIL = 'zoubeirsneni@gmail.com';
 
@@ -55,34 +74,21 @@ const checkAlert = (type: string, value: number) => {
   return null;
 };
 
-// --- Mock Auth & Data Helpers ---
-const MOCK_USER = {
-  uid: 'local-user-123',
-  displayName: 'Utilisateur Local',
-  email: 'zoubeirsneni@gmail.com',
-  photoURL: null
+// --- Firebase Helpers ---
+const login = async () => {
+  try {
+    await signInWithGoogle();
+  } catch (error) {
+    console.error("Login error:", error);
+  }
 };
 
-const STORAGE_KEYS = {
-  USER: 'miradialife_user',
-  PROFILE: 'miradialife_profile',
-  LOGS: 'miradialife_logs'
-};
-
-const saveToLocal = (key: string, data: any) => localStorage.setItem(key, JSON.stringify(data));
-const getFromLocal = (key: string) => {
-  const data = localStorage.getItem(key);
-  return data ? JSON.parse(data) : null;
-};
-
-const login = (setUser: any) => {
-  saveToLocal(STORAGE_KEYS.USER, MOCK_USER);
-  setUser(MOCK_USER);
-};
-
-const logout = (setUser: any) => {
-  localStorage.removeItem(STORAGE_KEYS.USER);
-  setUser(null);
+const logout = async () => {
+  try {
+    await firebaseLogout();
+  } catch (error) {
+    console.error("Logout error:", error);
+  }
 };
 
 const AdminPanel = ({ onSelectPatient }: { onSelectPatient: (p: {id: string, profile: UserProfile}) => void }) => {
@@ -90,12 +96,20 @@ const AdminPanel = ({ onSelectPatient }: { onSelectPatient: (p: {id: string, pro
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // In local mode, we only have ourselves or common mock data
-    const localProfile = getFromLocal(STORAGE_KEYS.PROFILE);
-    if (localProfile) {
-      setPatients([{ id: 'local-user-123', profile: localProfile, hasAlert: false }]);
-    }
-    setLoading(false);
+    const q = query(collection(db, 'users'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const patientList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        profile: doc.data() as UserProfile,
+        hasAlert: false // Alerts could be checked by fetching recent logs, but for now simple
+      }));
+      setPatients(patientList);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, 'list', 'users');
+    });
+
+    return () => unsubscribe();
   }, []);
 
   return (
@@ -186,9 +200,7 @@ const GlucoseChart = ({ logs, profile }: { logs: HealthLog[], profile: UserProfi
     .slice(0, 10)
     .reverse()
     .map(log => ({
-      time: log.timestamp?.seconds 
-        ? new Date(log.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        : '...',
+      time: formatTimestamp(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       val: log.value
     }));
 
@@ -304,7 +316,7 @@ const Dashboard = ({ user, profile, logs, onNavigate }: { user: any, profile: Us
           </div>
         </div>
         <p className="text-[11px] text-[#64748B] mt-6 font-medium">
-          Dernière mesure: {lastGlucose ? new Date(lastGlucose.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Indisponible'}
+          Dernière mesure: {lastGlucose ? formatTimestamp(lastGlucose.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Indisponible'}
         </p>
       </div>
 
@@ -396,32 +408,29 @@ const AddLog = ({ profile, onAdded, initialLog }: { profile: UserProfile | null,
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!value) return;
+    if (!value || !auth.currentUser) return;
     setLoading(true);
     try {
-      const newLog = {
-        id: Math.random().toString(36).substr(2, 9),
-        userId: 'local-user-123',
+      const logData = {
+        userId: auth.currentUser.uid,
         type,
         value: parseFloat(value),
         medicationName: type === 'medication' ? medicationName : null,
-        mealType: type === 'food' || type === 'glucose' ? mealType : null,
+        mealType: (type === 'food' || type === 'glucose') ? mealType : null,
         mealTime: type === 'glucose' ? mealTime : null,
         unit: type === 'weight' ? unit : (types.find(t => t.id === type)?.unit || null),
         notes,
-        timestamp: { seconds: Math.floor(Date.now() / 1000) }
+        timestamp: serverTimestamp()
       };
       
-      const existingLogs = getFromLocal(STORAGE_KEYS.LOGS) || [];
-      const updatedLogs = [newLog, ...existingLogs];
-      saveToLocal(STORAGE_KEYS.LOGS, updatedLogs);
+      await addDoc(collection(db, 'users', auth.currentUser.uid, 'logs'), logData);
       
       setValue('');
       setMedicationName('');
       setNotes('');
       onAdded();
     } catch (error) {
-      console.error(error);
+      handleFirestoreError(error, 'create', `users/${auth.currentUser.uid}/logs`);
     } finally {
       setLoading(false);
     }
@@ -561,13 +570,16 @@ const History = ({ logs, onDuplicate }: { logs: HealthLog[], onDuplicate: (log: 
     else if (period === 'year') cutoff.setFullYear(now.getFullYear() - 1);
 
     return logs
-      .filter(l => l.type === 'glucose' && l.timestamp?.seconds && new Date(l.timestamp.seconds * 1000) >= cutoff)
-      .map(l => ({
-        date: new Date(l.timestamp.seconds * 1000).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
-        value: l.value,
-        fullDate: new Date(l.timestamp.seconds * 1000).toLocaleString('fr-FR'),
-        timestamp: l.timestamp.seconds
-      }))
+      .filter(l => l.type === 'glucose' && l.timestamp)
+      .map(l => {
+        const d = formatTimestamp(l.timestamp);
+        return {
+          date: d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+          value: l.value,
+          fullDate: d.toLocaleString('fr-FR'),
+          timestamp: d.getTime()
+        };
+      })
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [logs, period]);
 
@@ -682,7 +694,7 @@ const History = ({ logs, onDuplicate }: { logs: HealthLog[], onDuplicate: (log: 
                     )}
                   </p>
                   <p className="text-xs text-gray-400">
-                    {log.timestamp?.seconds ? new Date(log.timestamp.seconds * 1000).toLocaleString('fr-FR', {
+                    {log.timestamp ? formatTimestamp(log.timestamp).toLocaleString('fr-FR', {
                       day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
                     }) : 'À l\'instant'}
                   </p>
@@ -726,6 +738,7 @@ const Profile = ({ user, profile, setProfile, setActiveTab, setUser }: { user: a
   const [loading, setLoading] = useState(false);
 
   const saveProfile = async () => {
+    if (!auth.currentUser) return;
     setLoading(true);
     try {
       const data: UserProfile = {
@@ -737,10 +750,9 @@ const Profile = ({ user, profile, setProfile, setActiveTab, setUser }: { user: a
         insulinToCarbRatio: parseFloat(editICR),
         insulinSensitivityFactor: parseFloat(editISF)
       };
-      saveToLocal(STORAGE_KEYS.PROFILE, data);
-      setProfile(data);
+      await setDoc(doc(db, 'users', auth.currentUser.uid), data, { merge: true });
     } catch (error) {
-      console.error(error);
+      handleFirestoreError(error, 'write', `users/${auth.currentUser.uid}`);
     } finally {
       setLoading(false);
     }
@@ -844,7 +856,7 @@ const Profile = ({ user, profile, setProfile, setActiveTab, setUser }: { user: a
       </Card>
 
       <div className="space-y-2">
-        <Button variant="danger" className="w-full flex items-center justify-center space-x-2" onClick={() => logout(setUser)}>
+        <Button variant="danger" className="w-full flex items-center justify-center space-x-2" onClick={logout}>
           <LogOut size={18} />
           <span>Se déconnecter</span>
         </Button>
@@ -1145,7 +1157,7 @@ const LifestylePage = ({ onBack }: { onBack: () => void }) => {
 };
 
 export default function App() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [logs, setLogs] = useState<HealthLog[]>([]);
   const [activeTab, setActiveTab] = useState<'dash' | 'history' | 'add' | 'profile' | 'diet' | 'lifestyle' | 'ai' | 'admin' | 'patient_view' | 'chat'>('dash');
@@ -1155,29 +1167,71 @@ export default function App() {
   const [pendingLog, setPendingLog] = useState<HealthLog | null>(null);
 
   useEffect(() => {
-    const localUser = getFromLocal(STORAGE_KEYS.USER);
-    if (localUser) {
-      setUser(localUser);
-      setProfile(getFromLocal(STORAGE_KEYS.PROFILE));
-      setLogs(getFromLocal(STORAGE_KEYS.LOGS) || []);
-    }
-    setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (!u) {
+        setProfile(null);
+        setLogs([]);
+        setLoading(false);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
-  // Use a listener-like effect for logs if needed, but here simple state is enough since it's local
   useEffect(() => {
-    if (user) {
-      const timer = setInterval(() => {
-        setLogs(getFromLocal(STORAGE_KEYS.LOGS) || []);
-      }, 1000);
-      return () => clearInterval(timer);
-    }
+    if (!user) return;
+
+    // Listen to profile
+    const profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        setProfile(docSnap.data() as UserProfile);
+      } else {
+        setProfile(null);
+      }
+    });
+
+    // Listen to logs
+    const logsQuery = query(
+      collection(db, 'users', user.uid, 'logs'),
+      orderBy('timestamp', 'desc')
+    );
+    const logsUnsubscribe = onSnapshot(logsQuery, (snapshot) => {
+      const logsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as HealthLog[];
+      setLogs(logsData);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, 'list', `users/${user.uid}/logs`);
+    });
+
+    return () => {
+      profileUnsubscribe();
+      logsUnsubscribe();
+    };
   }, [user]);
 
   const handleSelectPatient = async (p: {id: string, profile: UserProfile}) => {
     setSelectedPatient(p);
     setActiveTab('patient_view');
-    setPatientLogs(logs.filter(l => l.userId === p.id));
+    setLoading(true);
+    
+    const q = query(
+      collection(db, 'users', p.id, 'logs'),
+      orderBy('timestamp', 'desc')
+    );
+    
+    onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as HealthLog[];
+      setPatientLogs(data);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, 'list', `users/${p.id}/logs`);
+    });
   };
 
   const handleDuplicate = async (log: HealthLog) => {
@@ -1209,8 +1263,9 @@ export default function App() {
                 Géométrisez votre santé
               </p>
             </div>
-            <Button onClick={() => login(setUser)} className="w-full h-14 bg-[#3B82F6] shadow-lg shadow-blue-100">
-              Commencer localement
+            <Button onClick={login} className="w-full h-14 bg-[#3B82F6] shadow-lg shadow-blue-100 flex items-center justify-center gap-2">
+               <img src="https://www.google.com/favicon.ico" className="w-5 h-5 bg-white rounded-full p-0.5" alt="Google" />
+               Continuer avec Google
             </Button>
           </div>
         </motion.div>

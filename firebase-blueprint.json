@@ -1,0 +1,48 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user physical details and diabetes settings.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "diabetesType": { "type": "string", "enum": ["type1", "type2", "gestational"] },
+        "age": { "type": "number" },
+        "since": { "type": "string" },
+        "targetMin": { "type": "number" },
+        "targetMax": { "type": "number" },
+        "insulinToCarbRatio": { "type": "number" },
+        "insulinSensitivityFactor": { "type": "number" }
+      },
+      "required": ["name", "diabetesType"]
+    },
+    "HealthLog": {
+      "title": "Health Log",
+      "description": "Stores a single health entry (glucose, activity, etc.)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["glucose", "activity", "food", "weight", "medication"] },
+        "value": { "type": "number" },
+        "medicationName": { "type": "string" },
+        "mealType": { "type": "string", "enum": ["breakfast", "lunch", "dinner", "snack"] },
+        "mealTime": { "type": "string", "enum": ["before", "after"] },
+        "unit": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["userId", "timestamp", "type", "value"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "The private profile of a user."
+    },
+    "/users/{userId}/logs/{logId}": {
+      "schema": "HealthLog",
+      "description": "Health entries recorded by the user."
+    }
+  }
+}

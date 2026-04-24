@@ -4,6 +4,7 @@ import { Download, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { UserProfile, HealthLog } from '../types';
+import { formatTimestamp } from '../lib/firebase';
 
 export const ReportGenerator = ({ profile, logs }: { profile: UserProfile | null, logs: HealthLog[] }) => {
   const downloadReport = async () => {
@@ -78,7 +79,7 @@ export const ReportGenerator = ({ profile, logs }: { profile: UserProfile | null
             <tbody>
               {logs.slice(0, 30).map((log, i) => (
                 <tr key={i} className="border-b">
-                  <td className="p-3 text-sm">{new Date(log.timestamp?.seconds * 1000).toLocaleDateString()}</td>
+                  <td className="p-3 text-sm">{formatTimestamp(log.timestamp).toLocaleDateString()}</td>
                   <td className="p-3 text-sm font-bold uppercase">{log.type}</td>
                   <td className="p-3 text-sm">{log.value} {log.unit}</td>
                   <td className="p-3 text-xs text-slate-500">{log.notes || '-'}</td>
