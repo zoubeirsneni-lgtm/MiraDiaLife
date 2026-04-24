@@ -8,10 +8,11 @@ export function getAI() {
     const apiKey = process.env.GEMINI_API_KEY;
     
     if (!apiKey) {
-      console.warn("⚠️ Clé API Gemini non détectée.");
+      console.warn("⚠️ Clé API Gemini non détectée. Assurez-vous qu'elle est configurée dans votre environnement.");
       return null;
     }
     
+    console.log("✅ Clé API Gemini détectée. Version: 1.1 (Using gemini-flash-latest)");
     aiInstance = new GoogleGenAI({ apiKey });
   }
   return aiInstance;
@@ -93,13 +94,11 @@ export async function analyzeMealImage(base64Image: string): Promise<{ name: str
     if (!ai) return null;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: {
-        parts: [
-          { text: "Identify this Tunisian meal, estimate carbs in grams, and give short advice. Return JSON with keys: name, estimateGlucides, advice." },
-          { inlineData: { mimeType: "image/jpeg", data: base64Image.split(',')[1] || base64Image } }
-        ]
-      },
+      model: "gemini-flash-latest",
+      contents: [{ parts: [
+        { text: "Identify this Tunisian meal, estimate carbs in grams, and give short advice. Return JSON with keys: name, estimateGlucides, advice." },
+        { inlineData: { mimeType: "image/jpeg", data: base64Image.split(',')[1] || base64Image } }
+      ] }],
       config: {
         responseMimeType: "application/json"
       }
@@ -125,9 +124,10 @@ export async function getDiaCareInsights(profile: UserProfile, logs: HealthLog[]
       meals: logs.filter(l => l.type === 'food').slice(0, 5)
     };
 
+    console.log("📡 Diagnostic Expert: Requesting insights via gemini-flash-latest...");
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `Analyze health metrics and return DiaCareInsights JSON: ${JSON.stringify(userInput)}`,
+      model: "gemini-flash-latest",
+      contents: [{ parts: [{ text: `Analyze health metrics and return DiaCareInsights JSON: ${JSON.stringify(userInput)}` }] }],
       config: {
         systemInstruction: DIA_CARE_SYSTEM_PROMPT,
         responseMimeType: "application/json"
@@ -150,8 +150,9 @@ export async function generateMiraResponse(history: any[], userMsg: string, syst
     const ai = getAI();
     if (!ai) return "Désolée, clé API non configurée.";
 
+    console.log("📡 Mira: Generating response via gemini-flash-latest...");
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-latest",
       contents: [
         ...history,
         { role: 'user', parts: [{ text: userMsg }] }
