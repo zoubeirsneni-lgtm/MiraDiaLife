@@ -987,13 +987,13 @@ const DiaCareAIPage = ({ profile, logs, onBack }: { profile: UserProfile | null,
              </h3>
              <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 p-6 flex items-center justify-between shadow-xl shadow-slate-200">
                <div>
-                 <p className="text-4xl font-black">{insights.healthScore.score}</p>
-                 <p className="text-[10px] font-bold uppercase tracking-widest opacity-60 mt-1">{insights.healthScore.status}</p>
+                 <p className="text-4xl font-black">{insights?.healthScore?.score}</p>
+                 <p className="text-[10px] font-bold uppercase tracking-widest opacity-60 mt-1">{insights?.healthScore?.status}</p>
                </div>
                <div className="text-right max-w-[180px]">
-                 <p className="text-xs opacity-80 leading-relaxed italic">"{insights.healthScore.explanation}"</p>
+                 <p className="text-xs opacity-80 leading-relaxed italic">"{insights?.healthScore?.explanation}"</p>
                  <div className="mt-3 bg-blue-600/30 text-blue-300 text-[9px] font-bold px-2 py-1 rounded inline-block">
-                    PROCHAINE ACTION: {insights.healthScore.action}
+                    PROCHAINE ACTION: {insights?.healthScore?.action}
                  </div>
                </div>
              </Card>
@@ -1007,15 +1007,15 @@ const DiaCareAIPage = ({ profile, logs, onBack }: { profile: UserProfile | null,
              <Card className="space-y-4">
                <div>
                  <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">Remarque principale</p>
-                 <p className="text-sm font-medium text-slate-700">{insights.smartInsights.keyInsight}</p>
+                 <p className="text-sm font-medium text-slate-700">{insights?.smartInsights?.keyInsight}</p>
                </div>
                <div className="pt-3 border-t border-slate-100">
                  <p className="text-[10px] font-bold text-red-500 uppercase mb-1">Problème Détecté</p>
-                 <p className="text-sm font-medium text-slate-700">{insights.smartInsights.problem}</p>
+                 <p className="text-sm font-medium text-slate-700">{insights?.smartInsights?.problem}</p>
                </div>
                <div className="pt-3 border-t border-slate-100">
                  <p className="text-[10px] font-bold text-green-600 uppercase mb-1">Recommandation</p>
-                 <p className="text-sm font-medium text-slate-700">{insights.smartInsights.recommendation}</p>
+                 <p className="text-sm font-medium text-slate-700">{insights?.smartInsights?.recommendation}</p>
                </div>
              </Card>
           </section>
@@ -1028,21 +1028,21 @@ const DiaCareAIPage = ({ profile, logs, onBack }: { profile: UserProfile | null,
              <div className="grid grid-cols-2 gap-3">
                <Card className="p-4 space-y-2">
                   <p className="text-[9px] font-bold text-slate-400 uppercase">2 Heures</p>
-                  <p className="text-xs font-black text-slate-800">{insights.predictions.shortTerm.range}</p>
-                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-red-50 text-red-500 font-black uppercase">{insights.predictions.shortTerm.risk}</span>
+                  <p className="text-xs font-black text-slate-800">{insights?.predictions?.shortTerm?.range}</p>
+                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-red-50 text-red-500 font-black uppercase">{insights?.predictions?.shortTerm?.risk}</span>
                </Card>
                <Card className="p-4 space-y-2">
                   <p className="text-[9px] font-bold text-slate-400 uppercase">3 Jours</p>
-                  <p className="text-xs font-black text-slate-800">{insights.predictions.threeDay.trend}</p>
-                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-500 font-black uppercase">{insights.predictions.threeDay.risk}</span>
+                  <p className="text-xs font-black text-slate-800">{insights?.predictions?.threeDay?.trend}</p>
+                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-500 font-black uppercase">{insights?.predictions?.threeDay?.risk}</span>
                </Card>
              </div>
              <Card className="p-4 flex items-center justify-between">
                 <div>
                    <p className="text-[9px] font-bold text-slate-400 uppercase">Projection 7 Jours</p>
-                   <p className="text-sm font-black text-slate-800">{insights.predictions.sevenDay.trend}</p>
+                   <p className="text-sm font-black text-slate-800">{insights?.predictions?.sevenDay?.trend}</p>
                 </div>
-                {insights.predictions.sevenDay.warning && (
+                {insights?.predictions?.sevenDay?.warning && (
                   <AlertCircle size={20} className="text-orange-500" />
                 )}
              </Card>
@@ -1055,17 +1055,17 @@ const DiaCareAIPage = ({ profile, logs, onBack }: { profile: UserProfile | null,
              </h3>
              <Card className="bg-blue-50 border-blue-100 p-6 space-y-4">
                <div>
-                 <h4 className="text-lg font-black text-blue-900">{insights.tunisianMeal.name}</h4>
+                 <h4 className="text-lg font-black text-blue-900">{insights?.tunisianMeal?.name}</h4>
                  <p className="text-[10px] font-bold text-blue-600 mt-1 uppercase">Spécialité recommandées</p>
                </div>
                <div className="flex flex-wrap gap-2">
-                  {insights.tunisianMeal.ingredients.map((ing, i) => (
+                  {insights?.tunisianMeal?.ingredients?.map((ing, i) => (
                     <span key={i} className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded-lg shadow-sm">{ing}</span>
                   ))}
                </div>
-               <p className="text-xs text-blue-800 leading-relaxed italic">{insights.tunisianMeal.whySuitable}</p>
+               <p className="text-xs text-blue-800 leading-relaxed italic">{insights?.tunisianMeal?.whySuitable}</p>
                <div className="pt-2 border-t border-blue-200">
-                  <p className="text-[10px] font-bold text-blue-400 uppercase italic">Alternative: {insights.tunisianMeal.alternative}</p>
+                  <p className="text-[10px] font-bold text-blue-400 uppercase italic">Alternative: {insights?.tunisianMeal?.alternative}</p>
                </div>
              </Card>
           </section>
@@ -1077,9 +1077,9 @@ const DiaCareAIPage = ({ profile, logs, onBack }: { profile: UserProfile | null,
              </h3>
              <div className="space-y-2">
                {[
-                 { label: 'Petit Déjeuner', val: insights.dailyMealPlan.breakfast },
-                 { label: 'Déjeuner', val: insights.dailyMealPlan.lunch },
-                 { label: 'Dîner', val: insights.dailyMealPlan.dinner },
+                 { label: 'Petit Déjeuner', val: insights?.dailyMealPlan?.breakfast },
+                 { label: 'Déjeuner', val: insights?.dailyMealPlan?.lunch },
+                 { label: 'Dîner', val: insights?.dailyMealPlan?.dinner },
                ].map((m, i) => (
                  <Card key={i} className="flex justify-between items-center py-3">
                     <span className="text-[10px] font-bold text-slate-400 uppercase">{m.label}</span>
@@ -1087,7 +1087,7 @@ const DiaCareAIPage = ({ profile, logs, onBack }: { profile: UserProfile | null,
                  </Card>
                ))}
                <Card className="bg-green-50 border-green-100 py-3 text-center">
-                  <p className="text-[10px] font-black text-green-700 uppercase tracking-widest">Score d'équilibre: {insights.dailyMealPlan.score}/100</p>
+                  <p className="text-[10px] font-black text-green-700 uppercase tracking-widest">Score d'équilibre: {insights?.dailyMealPlan?.score}/100</p>
                </Card>
              </div>
           </section>
@@ -1101,16 +1101,16 @@ const DiaCareAIPage = ({ profile, logs, onBack }: { profile: UserProfile | null,
              <div className="grid grid-cols-2 gap-4 text-xs">
                 <div>
                    <p className="opacity-60 text-[9px] uppercase font-bold">Status Santé</p>
-                   <p className="font-black">{insights.dashboard.status}</p>
+                   <p className="font-black">{insights?.dashboard?.status}</p>
                 </div>
                 <div>
                    <p className="opacity-60 text-[9px] uppercase font-bold">Niveau de Risque</p>
-                   <p className="font-black">{insights.dashboard.risk}</p>
+                   <p className="font-black">{insights?.dashboard?.risk}</p>
                 </div>
              </div>
              <div className="pt-4 border-t border-white/20">
-                <p className="text-xs leading-relaxed font-medium">"{insights.dashboard.recommendation}"</p>
-                <p className="text-[10px] mt-2 opacity-60 italic">{insights.dashboard.outlook}</p>
+                <p className="text-xs leading-relaxed font-medium">"{insights?.dashboard?.recommendation}"</p>
+                <p className="text-[10px] mt-2 opacity-60 italic">{insights?.dashboard?.outlook}</p>
              </div>
           </Card>
 
@@ -1128,6 +1128,7 @@ const DiaCareAIPage = ({ profile, logs, onBack }: { profile: UserProfile | null,
     </div>
   );
 };
+
 
 // --- Main App ---
 
