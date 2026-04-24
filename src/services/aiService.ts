@@ -1,170 +1,132 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { UserProfile, HealthLog, DiaCareInsights } from "../types";
 
-let aiInstance: GoogleGenAI | null = null;
-
-export function getAI() {
-  if (!aiInstance) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    
-    if (!apiKey) {
-      console.warn("⚠️ Clé API Gemini non détectée. Assurez-vous qu'elle est configurée dans votre environnement.");
-      return null;
-    }
-    
-    console.log("✅ Clé API Gemini détectée. Version: 1.1 (Using gemini-flash-latest)");
-    aiInstance = new GoogleGenAI({ apiKey });
+const getAiClient = () => {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    throw new Error('CONFIG_MISSING');
   }
-  return aiInstance;
-}
+  return new GoogleGenAI({ apiKey: key });
+};
 
-const DIA_CARE_SYSTEM_PROMPT = `
-You are an advanced AI system called "Diagnostic Expert" specialized in diabetes management for the Tunisian population.
-You act as a diabetes nutrition assistant, meal generator, and glucose prediction engine.
-
-Output MUST be a valid JSON object matching the following interface:
-
-{
-  "tunisianMeal": {
-    "name": "string",
-    "ingredients": ["string"],
-    "whySuitable": "string",
-    "alternative": "string"
-  },
-  "dailyMealPlan": {
-    "breakfast": "string",
-    "lunch": "string",
-    "dinner": "string",
-    "explanation": "string",
-    "score": number
-  },
-  "predictions": {
-    "shortTerm": { "range": "string", "risk": "string", "cause": "string", "advice": "string" },
-    "threeDay": { "trend": "string", "risk": "string" },
-    "fiveDay": { "stability": "string", "factor": "string" },
-    "sevenDay": { "trend": "string", "warning": "string" }
-  },
-  "healthScore": {
-    "score": number,
-    "status": "string",
-    "explanation": "string",
-    "action": "string"
-  },
-  "smartInsights": {
-    "keyInsight": "string",
-    "problem": "string",
-    "recommendation": "string"
-  },
-  "dashboard": {
-    "status": "string",
-    "trend": "string",
-    "risk": "string",
-    "recommendation": "string",
-    "outlook": "string"
-  }
-}
-
-Use local Tunisian context for meals (Couscous, Ojja, Salad Mechouia, etc.) but adapted for diabetes.
-Respond in French.
-`;
-
-function validateAndRepairInsights(data: any): DiaCareInsights {
-  const fallback = {
-    tunisianMeal: { name: "Salade Mechouia thon", ingredients: ["Poivrons", "Tomates", "Thon", "Huile d'olive"], whySuitable: "Riche en fibres et oméga-3, impact glycémique faible.", alternative: "Ojja aux crevettes sans pain" },
-    dailyMealPlan: { breakfast: "Petit pain complet, fromage frais", lunch: "Couscous orge et légumes", dinner: "Dorade grillée, riz brun", explanation: "Apport équilibré en glucides complexes.", score: 85 },
-    predictions: { shortTerm: { range: "90-140 mg/dL", risk: "Faible", cause: "Stabilité observée", advice: "Continuer ainsi" }, threeDay: { trend: "Stable", risk: "Minime" }, fiveDay: { stability: "Bonne", factor: "Activité régulière" }, sevenDay: { trend: "Amélioration attendue", warning: "" } },
-    healthScore: { score: 75, status: "Correct", explanation: "Bonne gestion globale malgré quelques pics.", action: "Maintenir l'activité physique" },
-    smartInsights: { keyInsight: "Bonne réactivité post-prandiale.", problem: "Légère tendance à l'hypo matinale.", recommendation: "Répartir mieux les glucides le soir" },
-    dashboard: { status: "En contrôle", trend: "Stable", risk: "Bas", recommendation: "Suivi régulier", outlook: "Positif" }
-  };
-
-  return {
-    tunisianMeal: { ...fallback.tunisianMeal, ...(data.tunisianMeal || {}) },
-    dailyMealPlan: { ...fallback.dailyMealPlan, ...(data.dailyMealPlan || {}) },
-    predictions: { ...fallback.predictions, ...(data.predictions || {}) },
-    healthScore: { ...fallback.healthScore, ...(data.healthScore || {}) },
-    smartInsights: { ...fallback.smartInsights, ...(data.smartInsights || {}) },
-    dashboard: { ...fallback.dashboard, ...(data.dashboard || {}) }
-  };
-}
-
-export async function analyzeMealImage(base64Image: string): Promise<{ name: string; estimateGlucides: string; advice: string } | null> {
+export const getDiaCareInsights = async (profile: UserProfile, logs: HealthLog[]): Promise<DiaCareInsights | null> => {
   try {
-    const ai = getAI();
-    if (!ai) return null;
+    const ai = getAiClient();
+    const context = `
+      Profil: ${JSON.stringify(profile)}
+      Données récentes: ${JSON.stringify(logs.slice(0, 20))}
+    `;
+
+    const prompt = `
+      Tu es Mira, l'experte IA de DiaCare. Analyse les données de ce patient tunisien.
+      Toutes tes réponses doivent être en FRANÇAIS.
+      
+      Réponds UNIQUEMENT avec un objet JSON respectant strictement cette structure:
+      {
+        "tunisianMeal": { "name": string, "ingredients": string[], "whySuitable": string, "alternative": string },
+        "dailyMealPlan": { "breakfast": string, "lunch": string, "dinner": string, "explanation": string, "score": number },
+        "predictions": {
+          "shortTerm": { "range": string, "risk": string, "cause": string, "advice": string },
+          "threeDay": { "trend": string, "risk": string },
+          "fiveDay": { "stability": string, "factor": string },
+          "sevenDay": { "trend": string, "warning": string }
+        },
+        "healthScore": { "score": number, "status": string, "explanation": string, "action": string },
+        "smartInsights": { "keyInsight": string, "problem": string, "recommendation": string },
+        "dashboard": { "status": string, "trend": string, "risk": string, "recommendation": string, "outlook": string }
+      }
+    `;
 
     const response = await ai.models.generateContent({
       model: "gemini-flash-latest",
-      contents: [{ parts: [
-        { text: "Identify this Tunisian meal, estimate carbs in grams, and give short advice. Return JSON with keys: name, estimateGlucides, advice." },
-        { inlineData: { mimeType: "image/jpeg", data: base64Image.split(',')[1] || base64Image } }
-      ] }],
+      contents: [{ role: 'user', parts: [{ text: context + "\n\n" + prompt }] }],
       config: {
-        responseMimeType: "application/json"
+        responseMimeType: "application/json",
       }
     });
 
-    const text = response.text?.replace(/```json|```/g, "").trim();
-    if (!text) return null;
-    return JSON.parse(text);
+    const text = response.text || "";
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      console.error("Échec du parsing JSON de l'IA:", text);
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+         return JSON.parse(jsonMatch[0]);
+      }
+      throw new Error("Format JSON invalide de l'IA");
+    }
+  } catch (error) {
+    console.error("Erreur Diagnostic Expert Detail:", error);
+    throw error;
+  }
+};
+
+export const chatWithMira = async (profile: UserProfile | null, logs: HealthLog[], message: string, history: any[] = []) => {
+  try {
+    const ai = getAiClient();
+    const context = `
+      Tu es Mira, l'experte IA de DiaCare. Tu aides les patients diabétiques tunisiens.
+      Profil: ${JSON.stringify(profile)}
+      Derniers relevés: ${JSON.stringify(logs.slice(0, 10))}
+      Réponds toujours de manière empathique, courte et en français (avec quelques mots tunisiens si approprié).
+    `;
+
+    const contents = history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.parts[0].text }]
+    }));
+
+    if (contents.length === 0 || contents[contents.length - 1].role !== 'user') {
+      contents.push({ role: 'user', parts: [{ text: context + "\n\n" + message }] });
+    }
+
+    const response = await ai.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: contents
+    });
+
+    return response.text || "Désolée, je rencontre un problème technique.";
+  } catch (error) {
+    console.error("Chat Error:", error);
+    return "Désolée, je rencontre un problème de connexion avec mon cerveau IA. Réessaie plus tard.";
+  }
+};
+
+export const analyzeMeal = async (mealDescription: string) => {
+  try {
+    const ai = getAiClient();
+    const prompt = `
+      Analyse ce repas tunisien: "${mealDescription}".
+      Retourne un JSON avec:
+      {
+        "name": string,
+        "carbs": number (estimation en grammes),
+        "impact": "Faible" | "Modéré" | "Élevé",
+        "tips": string[] (3 conseils courts),
+        "warning": string (un avertissement si nécessaire)
+      }
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+      }
+    });
+
+    const text = response.text || "";
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const cleanJson = jsonMatch ? jsonMatch[0] : text.replace(/```json|```/g, "").trim();
+      return JSON.parse(cleanJson);
+    }
   } catch (error) {
     console.error("Meal Analysis Error:", error);
     return null;
   }
-}
+};
 
-export async function getDiaCareInsights(profile: UserProfile, logs: HealthLog[]): Promise<DiaCareInsights | null> {
-  try {
-    const ai = getAI();
-    if (!ai) return null;
-
-    const userInput = {
-      profile,
-      glucose: logs.filter(l => l.type === 'glucose').slice(0, 15),
-      meals: logs.filter(l => l.type === 'food').slice(0, 5)
-    };
-
-    console.log("📡 Diagnostic Expert: Requesting insights via gemini-flash-latest...");
-    const response = await ai.models.generateContent({
-      model: "gemini-flash-latest",
-      contents: [{ parts: [{ text: `Analyze health metrics and return DiaCareInsights JSON: ${JSON.stringify(userInput)}` }] }],
-      config: {
-        systemInstruction: DIA_CARE_SYSTEM_PROMPT,
-        responseMimeType: "application/json"
-      }
-    });
-
-    const text = response.text?.replace(/```json|```/g, "").trim();
-    if (!text) return null;
-    const parsed = JSON.parse(text);
-    return validateAndRepairInsights(parsed);
-  } catch (error) {
-    console.error("Diagnostic Expert Error:", error);
-    return null;
-  }
-}
-
-// Helper for chat components to use the same logic
-export async function generateMiraResponse(history: any[], userMsg: string, systemInstruction: string) {
-  try {
-    const ai = getAI();
-    if (!ai) return "Désolée, clé API non configurée.";
-
-    console.log("📡 Mira: Generating response via gemini-flash-latest...");
-    const response = await ai.models.generateContent({
-      model: "gemini-flash-latest",
-      contents: [
-        ...history,
-        { role: 'user', parts: [{ text: userMsg }] }
-      ],
-      config: {
-        systemInstruction
-      }
-    });
-
-    return response.text || "Désolée, je n'ai pas pu générer une réponse.";
-  } catch (error) {
-    console.error("Mira AI Error:", error);
-    return "Erreur technique Mira.";
-  }
-}

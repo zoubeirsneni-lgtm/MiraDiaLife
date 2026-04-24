@@ -63,3 +63,4 @@ export interface DiaCareInsights {
     outlook: string;
   };
 }
+

@@ -1,109 +1,111 @@
-import React, { useState, useRef } from 'react';
-import { Camera, Image as ImageIcon, Loader2, Info } from 'lucide-react';
-import { Button } from './ui/button';
-import { analyzeMealImage } from '../services/aiService';
+import React, { useState } from 'react';
+import { Card } from './Card';
+import { Camera, Sparkles, Utensils, CheckCircle2, AlertTriangle, X, Search } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { analyzeMeal } from '../services/aiService';
 
-interface MealAnalysisProps {
-  onAnalysisSuccess?: (data: { name: string; estimateGlucides: string; advice: string }) => void;
-}
+export const MealAnalysis = () => {
+  const [analysing, setAnalysing] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [description, setDescription] = useState("");
 
-export const MealAnalysis: React.FC<MealAnalysisProps> = ({ onAnalysisSuccess }) => {
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [result, setResult] = useState<{ name: string; estimateGlucides: string; advice: string } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setPreview(base64);
-        analyzeImage(base64);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const analyzeImage = async (base64: string) => {
-    setIsAnalyzing(true);
-    setResult(null);
+  const handleAnalyze = async () => {
+    if (!description.trim()) return;
+    setAnalysing(true);
     try {
-      const data = await analyzeMealImage(base64);
-      if (data) {
-        setResult(data);
-        if (onAnalysisSuccess) onAnalysisSuccess(data);
-      }
-    } catch (err) {
-      console.error("Analysis failed:", err);
-    } finally {
-      setIsAnalyzing(false);
+      const data = await analyzeMeal(description);
+      if (data) setResult(data);
+    } catch (e) {
+      console.error(e);
     }
+    setAnalysing(false);
   };
 
   return (
-    <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-6 border border-orange-100 shadow-sm">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 bg-orange-500 rounded-lg text-white">
-          <Camera size={20} />
-        </div>
-        <div>
-          <h3 className="font-bold text-slate-900">Analyse Photo de Repas</h3>
-          <p className="text-xs text-slate-600">Prenez une photo pour estimer les glucides</p>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {!preview ? (
-          <div 
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-orange-200 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-orange-100 transition-colors bg-white/50"
-          >
-            <ImageIcon size={40} className="text-orange-300 mb-2" />
-            <p className="text-sm font-medium text-orange-600">Cliquez pour ajouter une photo</p>
-            <p className="text-[10px] text-slate-400 mt-1">Plat tunisien, repas complet, etc.</p>
+    <div className="space-y-4">
+      <Card className="bg-white border-2 border-slate-100 p-6">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Utensils className="text-blue-600" size={20} />
+            <h3 className="font-bold text-slate-800">Analyser mon Repas</h3>
           </div>
-        ) : (
-          <div className="relative rounded-xl overflow-hidden aspect-video bg-black">
-            <img src={preview} alt="Repas" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-            <div className="absolute top-2 right-2">
-              <Button size="sm" variant="secondary" onClick={() => { setPreview(null); setResult(null); }} className="h-8 text-xs">
-                Changer
-              </Button>
+          
+          <div className="relative">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Décrit ton repas (ex: 200g de Couscous avec poulet et légumes...)"
+              className="w-full bg-slate-50 border-0 rounded-xl p-4 text-sm min-h-[100px] focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+            />
+            <div className="absolute bottom-3 right-3 flex gap-2">
+              <button 
+                onClick={handleAnalyze}
+                disabled={analysing || !description.trim()}
+                className="bg-blue-600 text-white p-2 rounded-lg shadow-lg shadow-blue-200 disabled:opacity-50 transition-all hover:scale-105 active:scale-95"
+              >
+                {analysing ? (
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
+                    <Sparkles size={20} />
+                  </motion.div>
+                ) : <Search size={20} />}
+              </button>
             </div>
-            {isAnalyzing && (
-              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white">
-                <Loader2 size={32} className="animate-spin mb-2" />
-                <p className="text-sm font-bold">Analyse par l'IA...</p>
-              </div>
-            )}
           </div>
-        )}
+          <p className="text-[10px] text-slate-400 text-center italic">Mira analysera les glucides et l'impact de ton plat tunisien.</p>
+        </div>
+      </Card>
 
+      <AnimatePresence>
         {result && (
-          <div className="bg-white rounded-xl p-4 border border-orange-100 animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="flex justify-between items-start mb-2">
-              <h4 className="font-bold text-slate-900">{result.name}</h4>
-              <span className="bg-orange-100 text-orange-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-                Est: {result.estimateGlucides}
-              </span>
-            </div>
-            <div className="flex gap-2 items-start">
-              <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-slate-600 leading-relaxed italic">{result.advice}</p>
-            </div>
-          </div>
-        )}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <Card className="bg-slate-900 text-white overflow-hidden relative">
+              <button 
+                onClick={() => setResult(null)}
+                className="absolute top-4 right-4 text-slate-500 hover:text-white"
+              >
+                <X size={20} />
+              </button>
 
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          className="hidden" 
-          accept="image/*" 
-          onChange={handleFileSelect}
-        />
-      </div>
+              <div className="flex items-center gap-3 mb-6">
+                <Utensils className="text-orange-500" />
+                <h4 className="font-black text-lg">{result.name}</h4>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-white/5 p-4 rounded-2xl">
+                  <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Glucides</p>
+                  <p className="text-xl font-black">{result.carbs}g</p>
+                </div>
+                <div className="bg-white/5 p-4 rounded-2xl">
+                  <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Impact Glycémique</p>
+                  <p className="text-xl font-black text-orange-400">{result.impact}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                <div className="flex items-start gap-2 text-xs">
+                  <AlertTriangle className="text-yellow-500 shrink-0" size={16} />
+                  <p className="text-slate-300 italic">{result.warning}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase font-black text-blue-400 tracking-widest">Conseils de Mira</p>
+                {result.tips.map((tip: string, i: number) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <CheckCircle2 size={14} className="text-green-500" />
+                    <span>{tip}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

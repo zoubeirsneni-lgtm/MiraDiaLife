@@ -4,9 +4,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { auth, login, logout, db } from './lib/firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, setDoc, getDocs, limit } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Activity, 
@@ -46,6 +43,7 @@ import { ReportGenerator } from './components/ReportGenerator';
 import { MealAnalysis } from './components/MealAnalysis';
 import { InsulinCalculator } from './components/InsulinCalculator';
 import ChatWithMira from './components/ChatWithMira';
+import { Card } from './components/Card';
 
 const ADMIN_EMAIL = 'zoubeirsneni@gmail.com';
 
@@ -57,44 +55,47 @@ const checkAlert = (type: string, value: number) => {
   return null;
 };
 
-// --- Components ---
+// --- Mock Auth & Data Helpers ---
+const MOCK_USER = {
+  uid: 'local-user-123',
+  displayName: 'Utilisateur Local',
+  email: 'zoubeirsneni@gmail.com',
+  photoURL: null
+};
+
+const STORAGE_KEYS = {
+  USER: 'miradialife_user',
+  PROFILE: 'miradialife_profile',
+  LOGS: 'miradialife_logs'
+};
+
+const saveToLocal = (key: string, data: any) => localStorage.setItem(key, JSON.stringify(data));
+const getFromLocal = (key: string) => {
+  const data = localStorage.getItem(key);
+  return data ? JSON.parse(data) : null;
+};
+
+const login = (setUser: any) => {
+  saveToLocal(STORAGE_KEYS.USER, MOCK_USER);
+  setUser(MOCK_USER);
+};
+
+const logout = (setUser: any) => {
+  localStorage.removeItem(STORAGE_KEYS.USER);
+  setUser(null);
+};
+
 const AdminPanel = ({ onSelectPatient }: { onSelectPatient: (p: {id: string, profile: UserProfile}) => void }) => {
   const [patients, setPatients] = useState<{id: string, profile: UserProfile, hasAlert?: boolean}[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const q = query(collection(db, 'users'));
-        const snapshot = await getDocs(q);
-        
-        // Also fetch latest logs for each patient to detect alerts
-        const patientsData = await Promise.all(snapshot.docs.map(async (userDoc) => {
-          const profile = userDoc.data() as UserProfile;
-          const logQ = query(collection(db, 'logs'), where('userId', '==', userDoc.id), orderBy('timestamp', 'desc'), limit(1));
-          const logSnap = await getDocs(logQ);
-          let hasAlert = false;
-          if (!logSnap.empty) {
-            const lastLog = logSnap.docs[0].data();
-            const alert = checkAlert(lastLog.type, lastLog.value);
-            if (alert) hasAlert = true;
-          }
-
-          return {
-            id: userDoc.id,
-            profile,
-            hasAlert
-          };
-        }));
-
-        setPatients(patientsData);
-      } catch (err) {
-        console.error("Admin fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPatients();
+    // In local mode, we only have ourselves or common mock data
+    const localProfile = getFromLocal(STORAGE_KEYS.PROFILE);
+    if (localProfile) {
+      setPatients([{ id: 'local-user-123', profile: localProfile, hasAlert: false }]);
+    }
+    setLoading(false);
   }, []);
 
   return (
@@ -168,15 +169,6 @@ const Button = ({ children, onClick, className = "", variant = "primary", disabl
     </button>
   );
 };
-
-const Card = ({ children, className = "", hover = false, onClick }: any) => (
-  <div 
-    onClick={onClick}
-    className={`bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] transition-all ${hover ? 'hover:bg-[#E0F2FE] hover:border-[#7DD3FC]' : ''} ${className}`}
-  >
-    {children}
-  </div>
-);
 
 const Input = ({ label, ...props }: any) => (
   <div className="space-y-1.5">
@@ -258,7 +250,7 @@ const GlucoseChart = ({ logs, profile }: { logs: HealthLog[], profile: UserProfi
 
 // --- Pages ---
 
-const Dashboard = ({ user, profile, logs, onNavigate }: { user: User, profile: UserProfile | null, logs: HealthLog[], onNavigate: (tab: any) => void }) => {
+const Dashboard = ({ user, profile, logs, onNavigate }: { user: any, profile: UserProfile | null, logs: HealthLog[], onNavigate: (tab: any) => void }) => {
   const lastGlucose = logs.find(l => l.type === 'glucose');
   const currentAlert = lastGlucose ? checkAlert('glucose', lastGlucose.value) : null;
   
@@ -281,7 +273,7 @@ const Dashboard = ({ user, profile, logs, onNavigate }: { user: User, profile: U
           {profile?.diabetesType ? `Diabète ${profile.diabetesType.toUpperCase()}` : 'MiraDiaLife'}
         </div>
         <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-200 ring-2 ring-white">
-          <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} referrerPolicy="no-referrer" alt="Avatar" />
+          <img src={user?.photoURL || `https://ui-avatars.com/api/?name=${user?.displayName || 'User'}`} referrerPolicy="no-referrer" alt="Avatar" />
         </div>
       </header>
 
@@ -327,27 +319,6 @@ const Dashboard = ({ user, profile, logs, onNavigate }: { user: User, profile: U
         </Card>
       </div>
 
-      <ReportGenerator profile={profile!} logs={logs} />
-
-      <button 
-        onClick={() => onNavigate('ai')}
-        className="w-full relative group"
-      >
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl blur opacity-30 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
-        <Card className="relative bg-white border-0 flex items-center justify-between p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
-              <Sparkles size={24} />
-            </div>
-            <div className="text-left">
-              <h3 className="text-sm font-black text-slate-800">Diagnostic Expert</h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Analyses & Prédictions</p>
-            </div>
-          </div>
-          <ChevronRight className="text-blue-500" size={20} />
-        </Card>
-      </button>
-
       {logs.some(l => l.type === 'weight') && (
         <Card className="bg-white flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -369,6 +340,27 @@ const Dashboard = ({ user, profile, logs, onNavigate }: { user: User, profile: U
       )}
 
       <GlucoseChart logs={logs} profile={profile} />
+
+      <ReportGenerator profile={profile} logs={logs} />
+
+      <button 
+        onClick={() => onNavigate('ai')}
+        className="w-full relative group"
+      >
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl blur opacity-30 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+        <Card className="relative bg-white border-0 flex items-center justify-between p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
+              <Sparkles size={24} />
+            </div>
+            <div className="text-left">
+              <h3 className="text-sm font-black text-slate-800">Diagnostic Expert</h3>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Analyses & Prédictions</p>
+            </div>
+          </div>
+          <ChevronRight className="text-blue-500" size={20} />
+        </Card>
+      </button>
 
       <div className="grid grid-cols-2 gap-4">
         <button onClick={() => onNavigate('diet')} className="text-left">
@@ -404,11 +396,12 @@ const AddLog = ({ profile, onAdded, initialLog }: { profile: UserProfile | null,
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!value || !auth.currentUser) return;
+    if (!value) return;
     setLoading(true);
     try {
-      await addDoc(collection(db, 'logs'), {
-        userId: auth.currentUser.uid,
+      const newLog = {
+        id: Math.random().toString(36).substr(2, 9),
+        userId: 'local-user-123',
         type,
         value: parseFloat(value),
         medicationName: type === 'medication' ? medicationName : null,
@@ -416,8 +409,13 @@ const AddLog = ({ profile, onAdded, initialLog }: { profile: UserProfile | null,
         mealTime: type === 'glucose' ? mealTime : null,
         unit: type === 'weight' ? unit : (types.find(t => t.id === type)?.unit || null),
         notes,
-        timestamp: serverTimestamp()
-      });
+        timestamp: { seconds: Math.floor(Date.now() / 1000) }
+      };
+      
+      const existingLogs = getFromLocal(STORAGE_KEYS.LOGS) || [];
+      const updatedLogs = [newLog, ...existingLogs];
+      saveToLocal(STORAGE_KEYS.LOGS, updatedLogs);
+      
       setValue('');
       setMedicationName('');
       setNotes('');
@@ -719,7 +717,7 @@ const History = ({ logs, onDuplicate }: { logs: HealthLog[], onDuplicate: (log: 
   );
 };
 
-const Profile = ({ user, profile, setProfile, setActiveTab }: { user: User, profile: UserProfile | null, setProfile: any, setActiveTab: (t: any) => void }) => {
+const Profile = ({ user, profile, setProfile, setActiveTab, setUser }: { user: any, profile: UserProfile | null, setProfile: any, setActiveTab: (t: any) => void, setUser: any }) => {
   const [editName, setEditName] = useState(profile?.name || user.displayName || '');
   const [editType, setEditType] = useState<DiabetesType>(profile?.diabetesType || 'type2');
   const [editAge, setEditAge] = useState(profile?.age?.toString() || '');
@@ -739,7 +737,7 @@ const Profile = ({ user, profile, setProfile, setActiveTab }: { user: User, prof
         insulinToCarbRatio: parseFloat(editICR),
         insulinSensitivityFactor: parseFloat(editISF)
       };
-      await setDoc(doc(db, 'users', user.uid), data);
+      saveToLocal(STORAGE_KEYS.PROFILE, data);
       setProfile(data);
     } catch (error) {
       console.error(error);
@@ -846,7 +844,7 @@ const Profile = ({ user, profile, setProfile, setActiveTab }: { user: User, prof
       </Card>
 
       <div className="space-y-2">
-        <Button variant="danger" className="w-full flex items-center justify-center space-x-2" onClick={logout}>
+        <Button variant="danger" className="w-full flex items-center justify-center space-x-2" onClick={() => logout(setUser)}>
           <LogOut size={18} />
           <span>Se déconnecter</span>
         </Button>
@@ -855,7 +853,7 @@ const Profile = ({ user, profile, setProfile, setActiveTab }: { user: User, prof
   );
 };
 
-const DietPage = ({ profile, onBack }: { profile: UserProfile | null, onBack: () => void }) => {
+const DietaryRecPage = ({ profile, onBack }: { profile: UserProfile | null, onBack: () => void }) => {
   const recommendations = {
     type1: [
       "Compter les glucides pour chaque repas.",
@@ -910,47 +908,26 @@ const DietPage = ({ profile, onBack }: { profile: UserProfile | null, onBack: ()
   );
 };
 
-const LifestylePage = ({ onBack }: { onBack: () => void }) => {
-  const tips = [
-    { title: "Activité Physique", content: "Visez 150 minutes d'activité aérobie modérée par semaine.", icon: Activity },
-    { title: "Sommeil", content: "Un sommeil de 7 à 9 heures aide à réguler la glycémie.", icon: Brain },
-    { title: "Hydratation", content: "L'eau aide les reins à éliminer l'excess de sucre.", icon: Droplets },
-    { title: "Stress", content: "Pratiquez la méditation ou le yoga pour limiter le cortisol.", icon: Brain }
-  ];
-
-  return (
-    <div className="space-y-6 pb-20">
-      <div className="flex items-center gap-4">
-        <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-          <ChevronRight className="rotate-180" size={24} />
-        </button>
-        <h2 className="text-2xl font-bold italic">Hygiène de Vie</h2>
-      </div>
-
-      <div className="grid gap-4">
-        {tips.map((tip, i) => (
-          <Card key={i} className="space-y-2">
-            <div className="flex items-center gap-2 text-blue-600">
-              <tip.icon size={20} />
-              <h4 className="font-bold">{tip.title}</h4>
-            </div>
-            <p className="text-sm text-gray-600">{tip.content}</p>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 const DiaCareAIPage = ({ profile, logs, onBack }: { profile: UserProfile | null, logs: HealthLog[], onBack: () => void }) => {
   const [insights, setInsights] = useState<DiaCareInsights | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchInsights = async () => {
-    if (!profile) return;
+    if (!profile) {
+      setError("Veuillez d'abord compléter votre profil dans l'onglet Profil.");
+      return;
+    }
     setLoading(true);
-    const res = await getDiaCareInsights(profile, logs);
-    if (res) setInsights(res);
+    setError(null);
+    try {
+      const res = await getDiaCareInsights(profile, logs);
+      if (res) setInsights(res);
+      else setError("Aucune donnée reçue. Réessayez.");
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || "Une erreur est survenue lors de l'analyse.");
+    }
     setLoading(false);
   };
 
@@ -978,7 +955,13 @@ const DiaCareAIPage = ({ profile, logs, onBack }: { profile: UserProfile | null,
         <h2 className="text-2xl font-black text-slate-800">Diagnostic Expert</h2>
       </div>
 
-      {insights ? (
+      {error ? (
+        <div className="flex flex-col items-center justify-center h-full text-center p-10">
+           <AlertCircle size={48} className="text-red-400 mb-4" />
+           <p className="text-slate-600 text-sm font-bold">{error}</p>
+           <Button className="mt-6" onClick={fetchInsights}>Réessayer</Button>
+        </div>
+      ) : insights ? (
         <div className="space-y-6">
           {/* Health Score */}
           <section className="space-y-3">
@@ -1129,11 +1112,40 @@ const DiaCareAIPage = ({ profile, logs, onBack }: { profile: UserProfile | null,
   );
 };
 
+const LifestylePage = ({ onBack }: { onBack: () => void }) => {
+  const tips = [
+    { title: "Activité Physique", content: "Visez 150 minutes d'activité aérobie modérée par semaine.", icon: Activity },
+    { title: "Sommeil", content: "Un sommeil de 7 à 9 heures aide à réguler la glycémie.", icon: Brain },
+    { title: "Hydratation", content: "L'eau aide les reins à éliminer l'excess de sucre.", icon: Droplets },
+    { title: "Stress", content: "Pratiquez la méditation ou le yoga pour limiter le cortisol.", icon: Brain }
+  ];
 
-// --- Main App ---
+  return (
+    <div className="space-y-6 pb-20">
+      <div className="flex items-center gap-4">
+        <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <ChevronRight className="rotate-180" size={24} />
+        </button>
+        <h2 className="text-2xl font-bold italic">Hygiène de Vie</h2>
+      </div>
+
+      <div className="grid gap-4">
+        {tips.map((tip, i) => (
+          <Card key={i} className="space-y-2">
+            <div className="flex items-center gap-2 text-blue-600">
+              <tip.icon size={20} />
+              <h4 className="font-bold">{tip.title}</h4>
+            </div>
+            <p className="text-sm text-gray-600">{tip.content}</p>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [logs, setLogs] = useState<HealthLog[]>([]);
   const [activeTab, setActiveTab] = useState<'dash' | 'history' | 'add' | 'profile' | 'diet' | 'lifestyle' | 'ai' | 'admin' | 'patient_view' | 'chat'>('dash');
@@ -1143,34 +1155,29 @@ export default function App() {
   const [pendingLog, setPendingLog] = useState<HealthLog | null>(null);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      if (u) {
-        const docSnap = await getDoc(doc(db, 'users', u.uid));
-        if (docSnap.exists()) {
-          setProfile(docSnap.data() as UserProfile);
-        }
-        const q = query(collection(db, 'logs'), where('userId', '==', u.uid), orderBy('timestamp', 'desc'));
-        onSnapshot(q, (snapshot) => {
-          setLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as HealthLog)));
-        }, (error) => {
-          console.error("Log subscription error:", error);
-          if (error.code === 'permission-denied') {
-            console.warn("Permission denied for logs. This might be due to missing indexing or rule misconfiguration.");
-          }
-        });
-      }
-      setLoading(false);
-    });
-    return unsub;
+    const localUser = getFromLocal(STORAGE_KEYS.USER);
+    if (localUser) {
+      setUser(localUser);
+      setProfile(getFromLocal(STORAGE_KEYS.PROFILE));
+      setLogs(getFromLocal(STORAGE_KEYS.LOGS) || []);
+    }
+    setLoading(false);
   }, []);
+
+  // Use a listener-like effect for logs if needed, but here simple state is enough since it's local
+  useEffect(() => {
+    if (user) {
+      const timer = setInterval(() => {
+        setLogs(getFromLocal(STORAGE_KEYS.LOGS) || []);
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [user]);
 
   const handleSelectPatient = async (p: {id: string, profile: UserProfile}) => {
     setSelectedPatient(p);
     setActiveTab('patient_view');
-    const q = query(collection(db, 'logs'), where('userId', '==', p.id), orderBy('timestamp', 'desc'));
-    const snapshot = await getDocs(q);
-    setPatientLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as HealthLog)));
+    setPatientLogs(logs.filter(l => l.userId === p.id));
   };
 
   const handleDuplicate = async (log: HealthLog) => {
@@ -1202,8 +1209,8 @@ export default function App() {
                 Géométrisez votre santé
               </p>
             </div>
-            <Button onClick={login} className="w-full h-14 bg-[#3B82F6] shadow-lg shadow-blue-100">
-              Connexion Google
+            <Button onClick={() => login(setUser)} className="w-full h-14 bg-[#3B82F6] shadow-lg shadow-blue-100">
+              Commencer localement
             </Button>
           </div>
         </motion.div>
@@ -1241,12 +1248,12 @@ export default function App() {
             )}
             {activeTab === 'profile' && (
               <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <Profile user={user} profile={profile} setProfile={setProfile} setActiveTab={setActiveTab} />
+                <Profile user={user} profile={profile} setProfile={setProfile} setActiveTab={setActiveTab} setUser={setUser} />
               </motion.div>
             )}
             {activeTab === 'diet' && (
               <motion.div key="diet" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                <DietPage profile={profile} onBack={() => setActiveTab('dash')} />
+                <DietaryRecPage profile={profile} onBack={() => setActiveTab('dash')} />
               </motion.div>
             )}
             {activeTab === 'lifestyle' && (
@@ -1255,7 +1262,7 @@ export default function App() {
               </motion.div>
             )}
             {activeTab === 'ai' && (
-              <motion.div key="ai" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+              <motion.div key="ai" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <DiaCareAIPage profile={profile} logs={logs} onBack={() => setActiveTab('dash')} />
               </motion.div>
             )}
